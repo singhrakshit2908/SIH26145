@@ -10,7 +10,7 @@ import joblib
 
 from scapy.all import rdpcap, DNS
 from src.export_results import export_results
-
+from src.correlation_engine import correlate_alerts
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -90,6 +90,7 @@ def extract_dns_features(query):
         if subdomain_length else 0
     ]
 
+
 def get_dga_domain(query):
     """
     Extract the registered domain label for DGA analysis.
@@ -158,6 +159,8 @@ def extract_dns_queries(pcap_path):
                     continue
 
     return queries
+
+
 # ============================================================
 # ANALYZE PCAP USING BATCH PREDICTION
 # ============================================================
@@ -167,6 +170,7 @@ def analyze_queries(queries):
     if not queries:
         print("No DNS queries found.")
         return []
+
     query_values = [
         item["query"] if isinstance(item, dict) else item
         for item in queries
@@ -246,25 +250,24 @@ def analyze_queries(queries):
 
         results.append({
             "query": query,
-	"source_ip": (
-    		queries[i]["source_ip"]
-    		if isinstance(queries[i], dict)
-    		else "UNKNOWN"
-),
 
-	"destination_ip": (
-    		queries[i]["destination_ip"]
-    		if isinstance(queries[i], dict)
-    		else "UNKNOWN"
-),
+            "source_ip": (
+                queries[i]["source_ip"]
+                if isinstance(queries[i], dict)
+                else "UNKNOWN"
+            ),
 
-	"timestamp": (
-    		queries[i]["timestamp"]
-    		if isinstance(queries[i], dict)
-    		else None
-),
+            "destination_ip": (
+                queries[i]["destination_ip"]
+                if isinstance(queries[i], dict)
+                else "UNKNOWN"
+            ),
 
-
+            "timestamp": (
+                queries[i]["timestamp"]
+                if isinstance(queries[i], dict)
+                else None
+            ),
 
             "dga_prediction":
                 "DGA"
@@ -299,6 +302,7 @@ def analyze_queries(queries):
 
     return results
 
+
 def analyze_pcap(pcap_path):
 
     pcap_path = Path(pcap_path)
@@ -310,6 +314,7 @@ def analyze_pcap(pcap_path):
     print("DNS queries found:", len(queries))
 
     return analyze_queries(queries)
+
 
 def analyze_csv(csv_path):
 
@@ -333,114 +338,6 @@ def analyze_csv(csv_path):
     print("DNS queries found:", len(queries))
 
     return analyze_queries(queries)
-
-    # -------------------------
-    # DGA FEATURES (BATCH)
-    # -------------------------
-
-    domain_parts = [
-    get_dga_domain(item["query"])
-    for item in queries
-]
-
-    dga_features = np.array([
-        extract_dga_features(domain)
-        for domain in domain_parts
-    ])
-
-    print("Running DGA detection...")
-
-    dga_predictions = dga_model.predict(
-        dga_features
-    )
-
-    dga_probabilities = dga_model.predict_proba(
-        dga_features
-    )
-
-    # -------------------------
-    # DNS TUNNEL FEATURES
-    # -------------------------
-
-    dns_features = np.array([
-        extract_dns_features(query)
-        for query in queries
-    ])
-
-    dns_feature_columns = [
-        "query_length",
-        "subdomain_length",
-        "entropy",
-        "digit_ratio",
-        "unique_char_ratio"
-    ]
-
-    dns_feature_df = pd.DataFrame(
-        dns_features,
-        columns=dns_feature_columns
-    )
-
-    print("Running DNS tunnel detection...")
-
-    dns_predictions = dns_model.predict(
-        dns_feature_df
-    )
-
-    dns_probabilities = dns_model.predict_proba(
-        dns_feature_df
-    )
-
-    # -------------------------
-    # COMBINE RESULTS
-    # -------------------------
-
-    results = []
-
-    for i, query in enumerate(queries):
-
-        dga_confidence = float(
-            max(dga_probabilities[i])
-        )
-
-        dns_confidence = float(
-            max(dns_probabilities[i])
-        )
-
-        results.append({
-            "query": query,
-
-            "dga_prediction":
-                "DGA"
-                if dga_predictions[i] == 1
-                else "BENIGN",
-
-            "dga_confidence":
-                round(dga_confidence, 4),
-
-            "dns_tunnel_prediction":
-                "DNS_TUNNEL"
-                if dns_predictions[i] == 1
-                else "BENIGN",
-
-            "dns_tunnel_confidence":
-                round(dns_confidence, 4),
-
-            "query_length":
-                int(dns_features[i][0]),
-
-            "subdomain_length":
-                int(dns_features[i][1]),
-
-            "entropy":
-                round(float(dns_features[i][2]), 4),
-
-            "digit_ratio":
-                round(float(dns_features[i][3]), 4)
-        })
-
-    print("Analysis complete!")
-
-    return results
 
 
 # ============================================================
@@ -494,8 +391,14 @@ if __name__ == "__main__":
 
     export_results(results, test_file)
 
+    correlated_count = correlate_alerts()
+
+    print(
+        f"\nCorrelation complete. "
+        f"Created {correlated_count} new correlated alert(s)."
+    )
+
     print("\nFirst 5 results:\n")
 
     for result in results[:5]:
         print(result)
-

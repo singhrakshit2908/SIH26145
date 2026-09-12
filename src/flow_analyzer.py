@@ -2,6 +2,10 @@ from pathlib import Path
 from collections import defaultdict
 
 from scapy.all import rdpcap, IP, TCP, UDP
+
+from src.anomaly_detector import detect_anomalies
+
+
 def get_flow_key(packet):
     if packet.haslayer(IP):
         src_ip = packet[IP].src
@@ -29,9 +33,13 @@ def get_flow_key(packet):
         )
 
     return None
+
+
 def load_pcap(pcap_path):
     packets = rdpcap(str(pcap_path))
     return packets
+
+
 def extract_flow_features(packets):
     flows = defaultdict(list)
 
@@ -49,13 +57,14 @@ def extract_flow_features(packets):
 
         duration = end_time - start_time
         packet_count = len(flow_packets)
+
         syn_count = sum(
-            
-    1
-    for packet in flow_packets
-    if packet.haslayer(TCP)
-    and packet[TCP].flags & 0x02
-)
+            1
+            for packet in flow_packets
+            if packet.haslayer(TCP)
+            and packet[TCP].flags & 0x02
+        )
+
         syn_ratio = syn_count / packet_count if packet_count else 0
 
         ack_count = sum(
@@ -71,13 +80,12 @@ def extract_flow_features(packets):
             if packet.haslayer(TCP)
             and packet[TCP].flags & 0x04
         )
+
         udp_count = sum(
             1
             for packet in flow_packets
             if packet.haslayer(UDP)
         )
-        
-        
 
         total_bytes = sum(
             len(packet)
@@ -115,14 +123,16 @@ def extract_flow_features(packets):
             "total_bytes": total_bytes,
             "packets_per_second": round(packets_per_second, 4),
             "bytes_per_second": round(bytes_per_second, 4),
-"syn_count": syn_count,
-"syn_ratio": round(syn_ratio, 4),
-"ack_count": ack_count,
-"rst_count": rst_count,
-"udp_count": udp_count
+            "syn_count": syn_count,
+            "syn_ratio": round(syn_ratio, 4),
+            "ack_count": ack_count,
+            "rst_count": rst_count,
+            "udp_count": udp_count
         })
 
     return flow_features
+
+
 def detect_flow_threat(flow):
     """
     Basic rule-based flow classification.
@@ -164,9 +174,216 @@ def detect_flow_threat(flow):
     # Everything else
     return "BENIGN", 0.50
 
+
 def analyze_flow_pcap(pcap_path):
     """
+    Analyze a PCAP using:
+    - SYN Flood rule engine
+    - UDP Flood rule engine
+    - Slowloris rule engine
+    - Isolation Forest anomaly detection
+
+    Isolation Forest is run once on all eligible flows.
+    """
+
+    pcap_path = Path(pcap_path)
+
+    packets = load_pcap(pcap_path)
+    flows = extract_flow_features(packets)
+
+    if not flows:
+        return []
+
+    # -------------------------------------------------
+    # Aggregate SYN traffic
+    # -------------------------------------------------
+
+    syn_sources = {}
+
+    for flow in flows:
+        if (
+            flow["protocol"] == "TCP"
+            and flow["syn_count"] > 0
+        ):
+            pair = (
+                flow["source_ip"],
+                flow["destination_ip"]
+            )
+
+            syn_sources[pair] = (
+                syn_sources.get(pair, 0)
+                + flow["syn_count"]
+            )
+
+    syn_flood_sources = {
+        pair
+        for pair, count in syn_sources.items()
+        if count >= 100
+    }
+
+    # -------------------------------------------------
+    # Aggregate UDP traffic
+    # -------------------------------------------------
+
+    udp_targets = {}
+
+    for flow in flows:
+        if flow["protocol"] == "UDP":
+            target = (
+                flow["destination_ip"],
+                flow["destination_port"]
+            )
+
+            udp_targets[target] = (
+                udp_targets.get(target, 0)
+                + flow["udp_count"]
+            )
+
+    udp_flood_targets = {
+        target
+        for target, count in udp_targets.items()
+        if count >= 100
+    }
+
+    # -------------------------------------------------
+    # First classify known rule-based threats
+    # -------------------------------------------------
+
+    classifications = []
+    anomaly_flows = []
+    anomaly_indexes = []
+
+    for index, flow in enumerate(flows):
+
+        syn_pair = (
+            flow["source_ip"],
+            flow["destination_ip"]
+        )
+
+        udp_target = (
+            flow["destination_ip"],
+            flow["destination_port"]
+        )
+
+        if syn_pair in syn_flood_sources:
+            classifications.append({
+                "threat_type": "SYN_FLOOD",
+                "confidence": 0.90,
+                "detection_source": "FLOW_RULE_ENGINE"
+            })
+
+        elif udp_target in udp_flood_targets:
+            classifications.append({
+                "threat_type": "UDP_FLOOD",
+                "confidence": 0.90,
+                "detection_source": "FLOW_RULE_ENGINE"
+            })
+
+        else:
+            threat_type, confidence = detect_flow_threat(flow)
+
+            if threat_type == "SLOWLORIS":
+                classifications.append({
+                    "threat_type": "SLOWLORIS",
+                    "confidence": confidence,
+                    "detection_source": "FLOW_RULE_ENGINE"
+                })
+
+            else:
+                # This flow has no known attack classification.
+                # Send it to Isolation Forest.
+                classifications.append(None)
+                anomaly_flows.append(flow)
+                anomaly_indexes.append(index)
+
+    # -------------------------------------------------
+    # Run Isolation Forest ONCE for all eligible flows
+    # -------------------------------------------------
+
+    if anomaly_flows:
+        anomaly_results = detect_anomalies(
+            anomaly_flows
+        )
+
+        for index, anomaly_result in zip(
+            anomaly_indexes,
+            anomaly_results
+        ):
+
+            if (
+                anomaly_result.get("prediction")
+                == "ANOMALY"
+            ):
+                classifications[index] = {
+                    "threat_type": "ANOMALY",
+                    "confidence": anomaly_result.get(
+                        "confidence",
+                        0
+                    ),
+                    "detection_source": "ISOLATION_FOREST"
+                }
+
+            else:
+                classifications[index] = {
+                    "threat_type": "BENIGN",
+                    "confidence": 0.50,
+                    "detection_source": "FLOW_RULE_ENGINE"
+                }
+
+    # -------------------------------------------------
+    # Build final standardized flow results
+    # -------------------------------------------------
+
+    results = []
+
+    timestamp = float(packets[0].time)
+
+    for flow, classification in zip(
+        flows,
+        classifications
+    ):
+
+        results.append({
+            "timestamp": timestamp,
+            "source_ip": flow["source_ip"],
+            "destination_ip": flow["destination_ip"],
+            "source_port": flow["source_port"],
+            "destination_port": flow["destination_port"],
+            "protocol": flow["protocol"],
+            "threat_type": classification["threat_type"],
+            "confidence": classification["confidence"],
+            "detection_source": classification[
+                "detection_source"
+            ],
+            "evidence": {
+                "duration": flow["duration"],
+                "packet_count": flow["packet_count"],
+                "total_bytes": flow["total_bytes"],
+                "packets_per_second": flow[
+                    "packets_per_second"
+                ],
+                "bytes_per_second": flow[
+                    "bytes_per_second"
+                ],
+                "syn_count": flow["syn_count"],
+                "syn_ratio": flow["syn_ratio"],
+                "ack_count": flow["ack_count"],
+                "rst_count": flow["rst_count"],
+                "udp_count": flow["udp_count"]
+            }
+        })
+
+    return results
+    """
     Analyze a PCAP and return alert-ready flow records.
+
+    Existing rule-based detection:
+    - SYN_FLOOD
+    - UDP_FLOOD
+    - SLOWLORIS
+
+    Additional ML detection:
+    - ANOMALY using Isolation Forest
     """
 
     pcap_path = Path(pcap_path)
@@ -234,16 +451,40 @@ def analyze_flow_pcap(pcap_path):
             flow["destination_port"]
         )
 
+        # -------------------------------------------------
+        # Existing rule-based detection
+        # -------------------------------------------------
+
         if syn_pair in syn_flood_sources:
             threat_type = "SYN_FLOOD"
             confidence = 0.90
+            detection_source = "FLOW_RULE_ENGINE"
 
         elif udp_target in udp_flood_targets:
             threat_type = "UDP_FLOOD"
             confidence = 0.90
+            detection_source = "FLOW_RULE_ENGINE"
 
         else:
             threat_type, confidence = detect_flow_threat(flow)
+            detection_source = "FLOW_RULE_ENGINE"
+
+            # -------------------------------------------------
+            # Isolation Forest anomaly detection
+            # Only run when no known attack rule matched.
+            # -------------------------------------------------
+
+            anomaly_result = detect_anomaly(flow)
+
+            if anomaly_result.get("prediction") == "ANOMALY":
+                threat_type = "ANOMALY"
+
+                confidence = anomaly_result.get(
+                    "confidence",
+                    confidence
+                )
+
+                detection_source = "ISOLATION_FOREST"
 
         results.append({
             "timestamp": float(packets[0].time),
@@ -254,7 +495,7 @@ def analyze_flow_pcap(pcap_path):
             "protocol": flow["protocol"],
             "threat_type": threat_type,
             "confidence": confidence,
-            "detection_source": "FLOW_RULE_ENGINE",
+            "detection_source": detection_source,
             "evidence": {
                 "duration": flow["duration"],
                 "packet_count": flow["packet_count"],
@@ -271,7 +512,7 @@ def analyze_flow_pcap(pcap_path):
 
     return results
 
-    return results   
+
 if __name__ == "__main__":
     BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -297,7 +538,8 @@ if __name__ == "__main__":
         "BENIGN": 0,
         "SYN_FLOOD": 0,
         "UDP_FLOOD": 0,
-        "SLOWLORIS": 0
+        "SLOWLORIS": 0,
+        "ANOMALY": 0
     }
 
     for flow in flows:

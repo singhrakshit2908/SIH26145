@@ -9,3 +9,7 @@ datasets/raw/dga-training-data-encoded.json.gz
 datasets/raw/dga-training-data-encoded.json/
 outputs/
 .gitinore
+
+data/
+outputs/
+*.pcap

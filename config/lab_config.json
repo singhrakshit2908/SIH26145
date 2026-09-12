@@ -1,0 +1,7 @@
+{
+    "interface": "eth0",
+    "server_ip": "192.168.100.10",
+    "server_port": 8080,
+    "capture_duration": 60,
+    "output_base": "datasets/raw"
+}
