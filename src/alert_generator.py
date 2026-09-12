@@ -32,8 +32,11 @@ def create_alert(result):
             datetime.now(timezone.utc).isoformat()
         ),
         "source_ip": result.get("source_ip", "UNKNOWN"),
-        "destination_ip": result.get("destination_ip", "UNKNOWN"),
-        "threat_type": threat_type,
+"destination_ip": result.get("destination_ip", "UNKNOWN"),
+"source_port": result.get("source_port", "UNKNOWN"),
+"destination_port": result.get("destination_port", "UNKNOWN"),
+"protocol": result.get("protocol", "UNKNOWN"),
+"threat_type": threat_type,
         "detection_source": result.get("detection_source", "UNKNOWN"),
         "confidence": confidence,
         "severity": get_severity(
