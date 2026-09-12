@@ -1,6 +1,7 @@
 from pathlib import Path
 import pandas as pd
 import json
+from src.database import initialize_database, insert_alert
 
 def export_alerts_json(alerts, output_path):
     """Export structured alerts to JSON."""
@@ -39,7 +40,7 @@ def export_results(results, source_file):
     """
     Save analysis results and confidence-filtered alerts as CSV files.
     """
-
+    initialize_database()
     if not results:
         print("No results to export.")
         return
@@ -169,7 +170,7 @@ def export_results(results, source_file):
 
     for _, row in alerts_df.iterrows():
         alert = {
-            "timestamp": row.get("timestamp"),
+            "timestamp": str(row.get("timestamp")),
             "source_ip": row.get("source_ip"),
             "destination_ip": row.get("destination_ip"),
             "source_port": row.get("source_port"),
@@ -200,6 +201,8 @@ def export_results(results, source_file):
     json_path = OUTPUT_DIR / "alerts.json"
     export_alerts_json(standard_alerts, json_path)
 
+    for alert in standard_alerts:
+    	insert_alert(alert)
     # =========================================================
     # SUMMARY
     # =========================================================
