@@ -1,0 +1,34 @@
+[
+    {
+        "label": "BENIGN",
+        "file": "datasets/raw/benign/benign.pcap",
+        "exists": true,
+        "size_bytes": 36312,
+        "capinfos": "File name:           datasets/raw/benign/benign.pcap\nFile type:           Wireshark/tcpdump/... - pcap\nNumber of packets:   244\nAverage packet size: 132.72 bytes\n",
+        "status": "VALID"
+    },
+    {
+        "label": "SYN_FLOOD",
+        "file": "datasets/raw/attacks/syn_flood/syn_flood.pcap",
+        "exists": true,
+        "size_bytes": 206748,
+        "capinfos": "File name:           datasets/raw/attacks/syn_flood/syn_flood.pcap\nFile type:           Wireshark/tcpdump/... - pcap\nNumber of packets:   2898\nAverage packet size: 55.33 bytes\n",
+        "status": "VALID"
+    },
+    {
+        "label": "UDP_FLOOD",
+        "file": "datasets/raw/attacks/udp_flood/udp_flood.pcap",
+        "exists": true,
+        "size_bytes": 56748,
+        "capinfos": "File name:           datasets/raw/attacks/udp_flood/udp_flood.pcap\nFile type:           Wireshark/tcpdump/... - pcap\nNumber of packets:   978\nAverage packet size: 42.00 bytes\n",
+        "status": "VALID"
+    },
+    {
+        "label": "SLOWLORIS",
+        "file": "datasets/raw/attacks/slowloris/slowloris.pcap",
+        "exists": true,
+        "size_bytes": 22714,
+        "capinfos": "File name:           datasets/raw/attacks/slowloris/slowloris.pcap\nFile type:           Wireshark/tcpdump/... - pcap\nNumber of packets:   250\nAverage packet size: 74.76 bytes\n",
+        "status": "VALID"
+    }
+]

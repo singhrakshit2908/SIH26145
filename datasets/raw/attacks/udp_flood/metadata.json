@@ -1,0 +1,16 @@
+{
+    "scenario": "UDP_FLOOD",
+    "label": "UDP_FLOOD",
+    "protocol": "UDP",
+    "environment": "isolated_local_lab",
+    "capture_file": "udp_flood.pcap",
+    "server": "127.0.0.1:8080",
+    "packet_count": 978,
+    "purpose": "flow_detection_testing",
+    "expected_characteristics": [
+        "high UDP packet activity",
+        "repeated UDP traffic",
+        "elevated packet rate",
+        "abnormal traffic volume"
+    ]
+}

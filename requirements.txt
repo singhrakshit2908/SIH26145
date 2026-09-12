@@ -1,0 +1,2 @@
+# No Python packages are required for the basic capture scripts.
+# Optional validation tools are provided by system packages (e.g. capinfos).
