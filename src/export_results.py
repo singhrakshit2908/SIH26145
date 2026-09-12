@@ -1,12 +1,123 @@
 from pathlib import Path
 import pandas as pd
 import json
+
 from src.database import initialize_database, insert_alert
+from src.alert_generator import create_alert
 
 def export_alerts_json(alerts, output_path):
     """Export structured alerts to JSON."""
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(alerts, f, indent=4, default=str)
+
+
+def export_flow_results(results, source_file=None):
+    """
+    Convert flow-analyzer results into standardized alerts
+    and store confirmed alerts in SQLite.
+
+    Handles:
+    - SYN_FLOOD
+    - UDP_FLOOD
+    - SLOWLORIS
+    - ANOMALY
+
+    BENIGN results are ignored.
+    """
+
+    initialize_database()
+
+    standard_alerts = []
+
+    for result in results:
+
+        threat_type = result.get(
+            "threat_type",
+            "BENIGN"
+        )
+
+        if threat_type == "BENIGN":
+            continue
+
+        alert = create_alert(result)
+
+        standard_alerts.append(alert)
+
+        insert_alert(alert)
+
+    if source_file:
+
+        flow_alerts_file = (
+            OUTPUT_DIR / "flow_alerts.csv"
+        )
+
+        if standard_alerts:
+            pd.DataFrame(
+                standard_alerts
+            ).to_csv(
+                flow_alerts_file,
+                index=False
+            )
+
+        flow_json_file = (
+            OUTPUT_DIR / "flow_alerts.json"
+        )
+
+        export_alerts_json(
+            standard_alerts,
+            flow_json_file
+        )
+
+    return standard_alerts
+    """
+    Convert flow-analyzer results into standardized alerts
+    and store confirmed alerts in SQLite.
+    Handles:
+    - SYN_FLOOD
+    - UDP_FLOOD
+    - SLOWLORIS
+
+    BENIGN results are ignored.
+    """
+    initialize_database()
+
+    standard_alerts = []
+
+    for result in results:
+        threat_type = result.get("threat_type", "BENIGN")
+
+        if threat_type == "BENIGN":
+            continue
+
+        alert = create_alert(result)
+        standard_alerts.append(alert)
+
+        insert_alert(alert)
+
+    # Save flow alerts separately for now.
+    # The final pipeline can combine these with DNS alerts.
+    if source_file:
+        flow_alerts_file = (
+            OUTPUT_DIR / "flow_alerts.csv"
+        )
+
+        if standard_alerts:
+            pd.DataFrame(standard_alerts).to_csv(
+                flow_alerts_file,
+                index=False
+            )
+
+        flow_json_file = (
+            OUTPUT_DIR / "flow_alerts.json"
+        )
+
+        export_alerts_json(
+            standard_alerts,
+            flow_json_file
+        )
+
+    return standard_alerts
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -23,7 +134,7 @@ DNS_TUNNEL_ALERT_THRESHOLD = 0.80
 
 
 def get_severity(confidence, is_alert):
-
+    """Determine alert severity from confidence."""
     if not is_alert:
         return "NONE"
 
@@ -38,16 +149,26 @@ def get_severity(confidence, is_alert):
 
 def export_results(results, source_file):
     """
-    Save analysis results and confidence-filtered alerts as CSV files.
+    Save DNS analysis results and confidence-filtered
+    DGA/DNS tunnel alerts as CSV, JSON, and SQLite records.
     """
     initialize_database()
+
     if not results:
         print("No results to export.")
         return
 
-    # Convert results into DataFrame
+    # =========================================================
+    # CONVERT RESULTS INTO DATAFRAME
+    # =========================================================
+
     df = pd.DataFrame(results)
-    df["timestamp"] = pd.to_datetime(df["timestamp"], unit="s", errors="coerce")
+
+    df["timestamp"] = pd.to_datetime(
+        df["timestamp"],
+        unit="s",
+        errors="coerce"
+    )
 
     # Add source information
     df["source_file"] = Path(source_file).name
@@ -98,7 +219,6 @@ def export_results(results, source_file):
 
         return "BENIGN"
 
-
     df["threat_category"] = df.apply(
         get_threat_category,
         axis=1
@@ -119,9 +239,9 @@ def export_results(results, source_file):
         axis=1
     )
 
-    df["final_confidence"] = df[
-        "final_confidence"
-    ].round(4)
+    df["final_confidence"] = (
+        df["final_confidence"].round(4)
+    )
 
     # =========================================================
     # SEVERITY
@@ -164,11 +284,11 @@ def export_results(results, source_file):
         OUTPUT_DIR
         / "alerts.csv"
     )
-    alerts_df = df[df["is_alert"] == True].copy()
 
     standard_alerts = []
 
     for _, row in alerts_df.iterrows():
+
         alert = {
             "timestamp": str(row.get("timestamp")),
             "source_ip": row.get("source_ip"),
@@ -179,15 +299,27 @@ def export_results(results, source_file):
             "threat_type": row.get("threat_category"),
             "confidence": row.get("final_confidence"),
             "severity": row.get("severity"),
+
             "evidence": {
                 "query": row.get("query"),
-                "dga_prediction": row.get("dga_prediction"),
-                "dns_tunnel_prediction": row.get("dns_tunnel_prediction"),
+                "dga_prediction": row.get(
+                    "dga_prediction"
+                ),
+                "dns_tunnel_prediction": row.get(
+                    "dns_tunnel_prediction"
+                ),
                 "entropy": row.get("entropy"),
-                "query_length": row.get("query_length"),
-                "subdomain_length": row.get("subdomain_length"),
-                "digit_ratio": row.get("digit_ratio")
+                "query_length": row.get(
+                    "query_length"
+                ),
+                "subdomain_length": row.get(
+                    "subdomain_length"
+                ),
+                "digit_ratio": row.get(
+                    "digit_ratio"
+                )
             },
+
             "detection_source": "DGA/DNS Tunnel"
         }
 
@@ -197,12 +329,27 @@ def export_results(results, source_file):
         alerts_file,
         index=False
     )
-    
-    json_path = OUTPUT_DIR / "alerts.json"
-    export_alerts_json(standard_alerts, json_path)
+
+    # =========================================================
+    # JSON EXPORT
+    # =========================================================
+
+    json_path = (
+        OUTPUT_DIR / "alerts.json"
+    )
+
+    export_alerts_json(
+        standard_alerts,
+        json_path
+    )
+
+    # =========================================================
+    # SQLITE INSERTION
+    # =========================================================
 
     for alert in standard_alerts:
-    	insert_alert(alert)
+        insert_alert(alert)
+
     # =========================================================
     # SUMMARY
     # =========================================================
@@ -211,23 +358,34 @@ def export_results(results, source_file):
     print("Location:", alerts_file)
 
     print("\nSummary:")
-    print("Total DNS events:", len(df))
-    print("DGA alert events:", df["dga_alert"].sum())
+    print(
+        "Total DNS events:",
+        len(df)
+    )
+
+    print(
+        "DGA alert events:",
+        df["dga_alert"].sum()
+    )
+
     print(
         "DNS tunnel alert events:",
         df["dns_tunnel_alert"].sum()
     )
+
     print(
         "Total suspicious events:",
         len(alerts_df)
     )
+
     print(
         "Unique suspicious queries:",
         alerts_df["query"].nunique()
     )
+
     # =========================================================
-# CREATE SUMMARY REPORT
-# =========================================================
+    # CREATE SUMMARY REPORT
+    # =========================================================
 
     summary_data = {
         "Metric": [
@@ -249,21 +407,25 @@ def export_results(results, source_file):
         ]
     }
 
-
-    summary_df = pd.DataFrame(summary_data)
-
+    summary_df = pd.DataFrame(
+        summary_data
+    )
 
     summary_file = (
         OUTPUT_DIR
         / "analysis_summary.csv"
     )
 
-
     summary_df.to_csv(
         summary_file,
         index=False
     )
 
+    print(
+        "\nAnalysis summary saved successfully!"
+    )
 
-    print("\nAnalysis summary saved successfully!")
-    print("Location:", summary_file)
+    print(
+        "Location:",
+        summary_file
+    )
