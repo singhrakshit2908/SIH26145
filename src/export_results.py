@@ -1,0 +1,230 @@
+from pathlib import Path
+import pandas as pd
+
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+OUTPUT_DIR = BASE_DIR / "outputs"
+OUTPUT_DIR.mkdir(exist_ok=True)
+
+
+# ============================================================
+# CONFIDENCE THRESHOLDS
+# ============================================================
+
+DGA_ALERT_THRESHOLD = 0.70
+DNS_TUNNEL_ALERT_THRESHOLD = 0.80
+
+
+def get_severity(confidence, is_alert):
+
+    if not is_alert:
+        return "NONE"
+
+    if confidence >= 0.90:
+        return "HIGH"
+
+    elif confidence >= 0.80:
+        return "MEDIUM"
+
+    return "LOW"
+
+
+def export_results(results, source_file):
+    """
+    Save analysis results and confidence-filtered alerts as CSV files.
+    """
+
+    if not results:
+        print("No results to export.")
+        return
+
+    # Convert results into DataFrame
+    df = pd.DataFrame(results)
+    df["timestamp"] = pd.to_datetime(df["timestamp"], unit="s", errors="coerce")
+
+    # Add source information
+    df["source_file"] = Path(source_file).name
+
+    # =========================================================
+    # ALERT DECISIONS
+    # =========================================================
+
+    df["dga_alert"] = (
+        (df["dga_prediction"] == "DGA")
+        &
+        (df["dga_confidence"] >= DGA_ALERT_THRESHOLD)
+    )
+
+    df["dns_tunnel_alert"] = (
+        (df["dns_tunnel_prediction"] == "DNS_TUNNEL")
+        &
+        (
+            df["dns_tunnel_confidence"]
+            >= DNS_TUNNEL_ALERT_THRESHOLD
+        )
+    )
+
+    # Final alert decision
+    df["is_alert"] = (
+        df["dga_alert"]
+        |
+        df["dns_tunnel_alert"]
+    )
+
+    # =========================================================
+    # THREAT CATEGORY
+    # =========================================================
+
+    def get_threat_category(row):
+
+        if (
+            row["dga_alert"]
+            and row["dns_tunnel_alert"]
+        ):
+            return "DGA_AND_DNS_TUNNEL"
+
+        elif row["dns_tunnel_alert"]:
+            return "DNS_TUNNEL"
+
+        elif row["dga_alert"]:
+            return "DGA"
+
+        return "BENIGN"
+
+
+    df["threat_category"] = df.apply(
+        get_threat_category,
+        axis=1
+    )
+
+    # =========================================================
+    # FINAL CONFIDENCE
+    # =========================================================
+
+    df["final_confidence"] = df.apply(
+        lambda row: max(
+            row["dga_confidence"]
+            if row["dga_alert"] else 0,
+
+            row["dns_tunnel_confidence"]
+            if row["dns_tunnel_alert"] else 0
+        ),
+        axis=1
+    )
+
+    df["final_confidence"] = df[
+        "final_confidence"
+    ].round(4)
+
+    # =========================================================
+    # SEVERITY
+    # =========================================================
+
+    df["severity"] = df.apply(
+        lambda row: get_severity(
+            row["final_confidence"],
+            row["is_alert"]
+        ),
+        axis=1
+    )
+
+    # =========================================================
+    # SAVE ALL RESULTS
+    # =========================================================
+
+    analysis_file = (
+        OUTPUT_DIR
+        / "analysis_results.csv"
+    )
+
+    df.to_csv(
+        analysis_file,
+        index=False
+    )
+
+    print("\nAll results saved successfully!")
+    print("Location:", analysis_file)
+
+    # =========================================================
+    # CONFIRMED ALERTS
+    # =========================================================
+
+    alerts_df = df[
+        df["is_alert"] == True
+    ].copy()
+
+    alerts_file = (
+        OUTPUT_DIR
+        / "alerts.csv"
+    )
+
+    alerts_df.to_csv(
+        alerts_file,
+        index=False
+    )
+
+    # =========================================================
+    # SUMMARY
+    # =========================================================
+
+    print("\nConfirmed alerts saved successfully!")
+    print("Location:", alerts_file)
+
+    print("\nSummary:")
+    print("Total DNS events:", len(df))
+    print("DGA alert events:", df["dga_alert"].sum())
+    print(
+        "DNS tunnel alert events:",
+        df["dns_tunnel_alert"].sum()
+    )
+    print(
+        "Total suspicious events:",
+        len(alerts_df)
+    )
+    print(
+        "Unique suspicious queries:",
+        alerts_df["query"].nunique()
+    )
+    # =========================================================
+# CREATE SUMMARY REPORT
+# =========================================================
+
+    summary_data = {
+        "Metric": [
+            "Source File",
+            "Total DNS Events",
+            "DGA Alert Events",
+            "DNS Tunnel Alert Events",
+            "Total Suspicious Events",
+            "Unique Suspicious Queries"
+        ],
+
+        "Value": [
+            Path(source_file).name,
+            len(df),
+            int(df["dga_alert"].sum()),
+            int(df["dns_tunnel_alert"].sum()),
+            len(alerts_df),
+            alerts_df["query"].nunique()
+        ]
+    }
+
+
+    summary_df = pd.DataFrame(summary_data)
+
+
+    summary_file = (
+        OUTPUT_DIR
+        / "analysis_summary.csv"
+    )
+
+
+    summary_df.to_csv(
+        summary_file,
+        index=False
+    )
+
+
+    print("\nAnalysis summary saved successfully!")
+    print("Location:", summary_file)
