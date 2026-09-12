@@ -1,0 +1,16 @@
+{
+    "scenario": "SYN_FLOOD",
+    "label": "SYN_FLOOD",
+    "protocol": "TCP",
+    "environment": "isolated_local_lab",
+    "capture_file": "syn_flood.pcap",
+    "server": "127.0.0.1:8080",
+    "packet_count": 2898,
+    "purpose": "flow_detection_testing",
+    "expected_characteristics": [
+        "high SYN activity",
+        "many TCP connection attempts",
+        "abnormal connection behaviour",
+        "short repeated TCP exchanges"
+    ]
+}

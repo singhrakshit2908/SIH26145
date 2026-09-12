@@ -1,0 +1,16 @@
+{
+    "scenario": "BENIGN",
+    "label": "BENIGN",
+    "protocol": "TCP/HTTP",
+    "environment": "isolated_local_lab",
+    "capture_file": "benign.pcap",
+    "server": "127.0.0.1:8080",
+    "packet_count": 244,
+    "capture_duration_seconds": 19.37,
+    "purpose": "flow_detection_testing",
+    "expected_characteristics": [
+        "normal HTTP requests",
+        "normal TCP connection behaviour",
+        "normal request timing"
+    ]
+}
