@@ -1,6 +1,11 @@
 from pathlib import Path
 import pandas as pd
+import json
 
+def export_alerts_json(alerts, output_path):
+    """Export structured alerts to JSON."""
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(alerts, f, indent=4, default=str)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -158,11 +163,42 @@ def export_results(results, source_file):
         OUTPUT_DIR
         / "alerts.csv"
     )
+    alerts_df = df[df["is_alert"] == True].copy()
+
+    standard_alerts = []
+
+    for _, row in alerts_df.iterrows():
+        alert = {
+            "timestamp": row.get("timestamp"),
+            "source_ip": row.get("source_ip"),
+            "destination_ip": row.get("destination_ip"),
+            "source_port": row.get("source_port"),
+            "destination_port": row.get("destination_port"),
+            "protocol": row.get("protocol", "DNS"),
+            "threat_type": row.get("threat_category"),
+            "confidence": row.get("final_confidence"),
+            "severity": row.get("severity"),
+            "evidence": {
+                "query": row.get("query"),
+                "dga_prediction": row.get("dga_prediction"),
+                "dns_tunnel_prediction": row.get("dns_tunnel_prediction"),
+                "entropy": row.get("entropy"),
+                "query_length": row.get("query_length"),
+                "subdomain_length": row.get("subdomain_length"),
+                "digit_ratio": row.get("digit_ratio")
+            },
+            "detection_source": "DGA/DNS Tunnel"
+        }
+
+        standard_alerts.append(alert)
 
     alerts_df.to_csv(
         alerts_file,
         index=False
     )
+    
+    json_path = OUTPUT_DIR / "alerts.json"
+    export_alerts_json(standard_alerts, json_path)
 
     # =========================================================
     # SUMMARY
