@@ -29,7 +29,7 @@ def create_anomaly_alert(
 ) -> dict[str, Any] | None:
     """
     Run anomaly detection and convert an ANOMALY result
-    into SENTINELFLOW's standard alert schema.
+    into CYBERDHRISTI's standard alert schema.
 
     BENIGN flows return None.
     """

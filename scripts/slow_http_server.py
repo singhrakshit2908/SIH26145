@@ -56,7 +56,7 @@ server.bind((HOST, PORT))
 server.listen(20)
 
 print("=" * 50)
-print("SentinelFlow Slow HTTP Lab Server")
+print("CyberDhristi Slow HTTP Lab Server")
 print("=" * 50)
 print(f"Listening ONLY on {HOST}:{PORT}")
 print("Press Ctrl+C to stop.")

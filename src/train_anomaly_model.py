@@ -118,7 +118,8 @@ def train_anomaly_model(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Train SentinelFlow Isolation Forest anomaly model.")
+    parser = argparse.ArgumentParser(description="Train CyberDhristi
+ Isolation Forest anomaly model.")
     parser.add_argument("--data", required=True, help="CSV containing BENIGN/normal flow features.")
     parser.add_argument("--contamination", type=float, default=0.02)
     parser.add_argument("--random-state", type=int, default=42)

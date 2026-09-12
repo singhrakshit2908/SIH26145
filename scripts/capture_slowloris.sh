@@ -43,7 +43,7 @@ try:
         request = (
             f"GET /slow{i} HTTP/1.1\r\n"
             f"Host: {TARGET}:{PORT}\r\n"
-            "User-Agent: SentinelFlow-Lab\r\n"
+            "User-Agent: CyberDhristi-Lab\r\n"
         )
 
         s.sendall(request.encode())

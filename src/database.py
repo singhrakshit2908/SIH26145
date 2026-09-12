@@ -2,7 +2,7 @@ import sqlite3
 from pathlib import Path
 
 
-DB_PATH = Path("data/sentinelflow.db")
+DB_PATH = Path("data/cyberdhristi.db")
 
 
 def get_connection():
@@ -12,7 +12,7 @@ def get_connection():
 
 
 def initialize_database():
-    """Create the SENTINELFLOW database tables."""
+    """Create the CYBERDHRISTI database tables."""
 
     conn = get_connection()
     cursor = conn.cursor()

@@ -3,12 +3,12 @@ from datetime import datetime
 from pathlib import Path
 
 
-DB_PATH = Path("data/sentinelflow.db")
+DB_PATH = Path("data/cyberdhristi.db")
 DEFAULT_TIME_WINDOW = 300  # 5 minutes
 
 
 def get_connection():
-    """Create a connection to the SENTINELFLOW SQLite database."""
+    """Create a connection to the CYBERDHRISTI SQLite database."""
     return sqlite3.connect(DB_PATH)
 
 
