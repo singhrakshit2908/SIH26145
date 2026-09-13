@@ -46,7 +46,6 @@ def initialize_database():
         cursor = conn.cursor()
 
         # WAL allows readers and writers to work concurrently.
-        cursor.execute("PRAGMA journal_mode=WAL")
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS flows (
