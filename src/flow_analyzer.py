@@ -113,6 +113,7 @@ def extract_flow_features(packets):
         ) = flow_key
 
         flow_features.append({
+            "timestamp": start_time,
             "source_ip": source_ip,
             "destination_ip": destination_ip,
             "source_port": source_port,
@@ -175,7 +176,12 @@ def detect_flow_threat(flow):
     return "BENIGN", 0.50
 
 
-def analyze_flow_pcap(pcap_path):
+def analyze_flow_pcap(
+    pcap_path,
+    syn=True,
+    udp=True,
+    slow=True,
+    anomaly=True,):
     """
     Analyze a PCAP using:
     - SYN Flood rule engine
@@ -265,14 +271,14 @@ def analyze_flow_pcap(pcap_path):
             flow["destination_port"]
         )
 
-        if syn_pair in syn_flood_sources:
+        if syn and syn_pair in syn_flood_sources:
             classifications.append({
                 "threat_type": "SYN_FLOOD",
                 "confidence": 0.90,
                 "detection_source": "FLOW_RULE_ENGINE"
             })
 
-        elif udp_target in udp_flood_targets:
+        elif udp and udp_target in udp_flood_targets:
             classifications.append({
                 "threat_type": "UDP_FLOOD",
                 "confidence": 0.90,
@@ -280,9 +286,13 @@ def analyze_flow_pcap(pcap_path):
             })
 
         else:
-            threat_type, confidence = detect_flow_threat(flow)
+            threat_type, confidence = (
+            detect_flow_threat(flow)
+                if slow
+                else (None, 0.0)
+            )
 
-            if threat_type == "SLOWLORIS":
+            if slow and threat_type == "SLOWLORIS":
                 classifications.append({
                     "threat_type": "SLOWLORIS",
                     "confidence": confidence,
@@ -300,7 +310,7 @@ def analyze_flow_pcap(pcap_path):
     # Run Isolation Forest ONCE for all eligible flows
     # -------------------------------------------------
 
-    if anomaly_flows:
+    if anomaly and anomaly_flows:
         anomaly_results = detect_anomalies(
             anomaly_flows
         )
@@ -336,15 +346,13 @@ def analyze_flow_pcap(pcap_path):
 
     results = []
 
-    timestamp = float(packets[0].time)
-
     for flow, classification in zip(
         flows,
         classifications
     ):
 
         results.append({
-            "timestamp": timestamp,
+            "timestamp": float(flow["timestamp"]),
             "source_ip": flow["source_ip"],
             "destination_ip": flow["destination_ip"],
             "source_port": flow["source_port"],

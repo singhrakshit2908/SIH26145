@@ -354,8 +354,8 @@ if __name__ == "__main__":
 
     print("\nAvailable PCAP files:\n")
 
-    files = list(RAW_DATA_DIR.glob("*.pcap"))
-    files += list(RAW_DATA_DIR.glob("*.pcapng"))
+    files = list(RAW_DATA_DIR.rglob("*.pcap"))
+    files += list(RAW_DATA_DIR.rglob("*.pcapng"))
 
     if not files:
         print("No PCAP files found.")

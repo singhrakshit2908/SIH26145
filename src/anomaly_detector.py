@@ -243,15 +243,18 @@ def detect_anomalies(
             decision_scores[index]
         )
 
+        confidence = _bounded_confidence(
+            decision_score,
+            clf
+        )
+
+        # Isolation Forest normally returns:
+        #   1  = normal
+        #  -1  = anomaly
         prediction = (
             "BENIGN"
             if int(raw_prediction) == 1
             else "ANOMALY"
-        )
-
-        confidence = _bounded_confidence(
-            decision_score,
-            clf
         )
 
         evidence = {
@@ -327,32 +330,42 @@ def result_to_alert(
             if timestamp is not None
             else flow.get("timestamp")
         ),
+
         "source_ip": flow.get(
             "source_ip"
         ),
+
         "destination_ip": flow.get(
             "destination_ip"
         ),
+
         "source_port": flow.get(
             "source_port"
         ),
+
         "destination_port": flow.get(
             "destination_port"
         ),
+
         "protocol": flow.get(
             "protocol"
         ),
+
         "threat_type": "ANOMALY",
+
         "confidence": result.get(
             "confidence"
         ),
+
         "severity": (
             "MEDIUM"
             if result.get("prediction")
             == "ANOMALY"
             else "INFO"
         ),
+
         "detection_source": "ISOLATION_FOREST",
+
         "evidence": result.get(
             "evidence",
             {}

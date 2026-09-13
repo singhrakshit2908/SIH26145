@@ -8,7 +8,7 @@ import streamlit as st
 from src.pcap_analyzer import analyze_pcap, analyze_csv
 from src.flow_analyzer import analyze_flow_pcap
 from src.export_results import export_results, export_flow_results
-from src.database import initialize_database, get_connection
+from src.database import initialize_database, get_connection, clear_analysis_data
 from src.correlation_engine import correlate_alerts
 
 
@@ -922,11 +922,24 @@ elif page == "Detection Center":
                 tunnel = st.checkbox("DNS", value=True)
 
             if st.button("⚡ EXECUTE ANALYSIS", type="primary", use_container_width=True):
+                # Do not silently do nothing when every detector is disabled.
+                if not (syn or udp or slow or anomaly or dga or tunnel):
+                    st.warning(
+                        "⚠️ Select at least one detection engine before executing analysis."
+                    )
+                    st.stop()
+
+                clear_analysis_data()
+
+                # Always initialize result counters before any detector runs.
                 flow_count = 0
                 dns_count = 0
                 correlation_count = 0
 
                 with st.spinner("CYBERDHRISTI neural analysis in progress..."):
+                    # -------------------------------
+                    # DNS ANALYSIS
+                    # -------------------------------
                     if dga or tunnel:
                         try:
                             dns_results = analyze_pcap(selected_file)
@@ -945,9 +958,20 @@ elif page == "Detection Center":
                         except Exception as error:
                             st.error(f"DNS analysis failed: {error}")
 
+                    # -------------------------------
+                    # FLOW ANALYSIS
+                    # -------------------------------
                     if syn or udp or slow or anomaly:
                         try:
-                            flow_results = analyze_flow_pcap(selected_file)
+                            # Pass detector toggles into the analyzer so disabled
+                            # engines are not executed.
+                            flow_results = analyze_flow_pcap(
+                                selected_file,
+                                syn,
+                                udp,
+                                slow,
+                                anomaly,
+                            )
                             flow_results = filter_flow_results(
                                 flow_results,
                                 syn,
@@ -962,6 +986,9 @@ elif page == "Detection Center":
                         except Exception as error:
                             st.error(f"Flow analysis failed: {error}")
 
+                    # -------------------------------
+                    # CORRELATION
+                    # -------------------------------
                     try:
                         correlation_count = correlate_alerts()
                     except Exception as error:
@@ -972,7 +999,7 @@ elif page == "Detection Center":
                     f"FLOW ALERTS: {flow_count}  |  DNS ALERT EVENTS: {dns_count}  |  "
                     f"NEW CORRELATIONS: {correlation_count}"
                 )
-                st.rerun()
+                #st.rerun()
 
     else:
         csv_files = get_csv_files()
