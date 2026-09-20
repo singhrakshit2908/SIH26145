@@ -63,7 +63,7 @@ The objective of this project is to build an AI/ML pipeline capable of:
 
 ---
 
-# 💡 Proposed Solution
+# 💡 Solution
 
 The system follows a **passive detection architecture**.
 
